@@ -1,11 +1,7 @@
-streamlit
-numpy
 openseespy
 opstool
 gmsh
-matplotlib
-imageio
-pandas
-xarray
+
+
 
 
