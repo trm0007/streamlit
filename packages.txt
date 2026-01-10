@@ -16,3 +16,5 @@ libfreetype6
 libblas3
 liblapack3
 libgfortran5
+tk
+python3-tk
