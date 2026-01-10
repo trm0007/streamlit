@@ -4,3 +4,15 @@ libxrender1
 libxext6
 libsm6
 libxrandr2
+libxcursor1
+libxinerama1
+libxi6
+libxfixes3
+libgomp1
+libx11-6
+libxau6
+libxdmcp6
+libxcb1
+libglvnd0
+libglx0
+libopengl0
