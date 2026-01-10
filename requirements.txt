@@ -22,7 +22,7 @@ fonttools
 frozenlist
 gitdb
 GitPython
-gmsh
+gmsh==4.11.1
 google-crc32c
 idna
 ImageIO
