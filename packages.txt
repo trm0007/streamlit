@@ -16,3 +16,12 @@ libxcb1
 libglvnd0
 libglx0
 libopengl0
+libxft2
+libfontconfig1
+libfreetype6
+libpng16-16
+libice6
+libxt6
+libxmu6
+libxpm4
+libxaw7
