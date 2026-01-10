@@ -1,46 +1,3 @@
-# """
-# Structural Model Builder - Streamlit App
-# Professional interface with minimal code
-# """
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 """
 Structural Model Builder - Professional Streamlit App
 Clean, modern interface with example management
@@ -57,6 +14,22 @@ from io import BytesIO
 from datetime import datetime
 
 
+# ============================================================
+# GMSH AVAILABILITY CHECK
+# ============================================================
+
+GMSH_AVAILABLE = True
+GMSH_ERROR_MESSAGE = None
+
+try:
+    import gmsh
+    gmsh.initialize()
+    gmsh.finalize()
+except Exception as e:
+    GMSH_AVAILABLE = False
+    GMSH_ERROR_MESSAGE = str(e)
+
+
 def create_regular_polygon_nodes(center_x, center_y, radius, n_sides, start_id, z=0.0):
     """Create regular polygon nodes dictionary"""
     angles = np.linspace(0, 2*np.pi, n_sides + 1)[:-1]
@@ -70,6 +43,8 @@ def create_regular_polygon_nodes(center_x, center_y, radius, n_sides, start_id, 
 
 def patch_gmsh():
     """Fix GMSH signal handling"""
+    if not GMSH_AVAILABLE:
+        return None
     import signal as sig
     orig = sig.signal
     def dummy(sn, h):
@@ -563,6 +538,40 @@ with st.sidebar:
 st.markdown('<h1 class="main-title">🏗️ Structural Model Builder</h1>', unsafe_allow_html=True)
 st.markdown('<p class="subtitle">Advanced Finite Element Analysis Platform</p>', unsafe_allow_html=True)
 
+# GMSH availability warning
+if not GMSH_AVAILABLE:
+    st.error(f"""
+    ⚠️ **GMSH Library Not Available**
+    
+    The GMSH library could not be loaded. This is required for mesh generation.
+    
+    **Error:** `{GMSH_ERROR_MESSAGE}`
+    
+    **To fix on Streamlit Cloud:**
+    1. Create a `packages.txt` file in your repository root with:
+    ```
+    libglu1-mesa
+    libglu1-mesa-dev
+    freeglut3
+    freeglut3-dev
+    libgl1-mesa-glx
+    ```
+    
+    2. Push the file to your repository
+    3. Streamlit Cloud will automatically install these system dependencies
+    
+    **Local fix:**
+    ```bash
+    # Ubuntu/Debian
+    sudo apt-get install libglu1-mesa libglu1-mesa-dev freeglut3 freeglut3-dev
+    
+    # macOS
+    brew install mesa glu freeglut
+    ```
+    """)
+    
+    st.info("💡 You can still view and edit configurations, but building will fail until GMSH is available.")
+
 # Main tabs
 tab1, tab2, tab3 = st.tabs(["📝 Editor", "🚀 Build & Results", "📊 Analytics"])
 
@@ -692,7 +701,11 @@ with tab2:
                 st.code(st.session_state.config_text, language='python', line_numbers=True)
         
         with col2:
-            if st.button("🔨 Build Model", type="primary", use_container_width=True):
+            build_button_disabled = not GMSH_AVAILABLE
+            build_button_help = "GMSH library not available - see error message above" if not GMSH_AVAILABLE else "Build the structural model"
+            
+            if st.button("🔨 Build Model", type="primary", use_container_width=True, 
+                        disabled=build_button_disabled, help=build_button_help):
                 with st.spinner("Building model..."):
                     try:
                         od = st.session_state.output_dir
@@ -877,9 +890,3 @@ st.markdown("""
     </p>
 </div>
 """, unsafe_allow_html=True)
-
-
-
-
-
-
