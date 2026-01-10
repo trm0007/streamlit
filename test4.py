@@ -1,46 +1,3 @@
-# """
-# Structural Model Builder - Streamlit App
-# Professional interface with minimal code
-# """
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 """
 Structural Model Builder - Professional Streamlit App
 Clean, modern interface with example management
@@ -877,6 +834,7 @@ st.markdown("""
     </p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
