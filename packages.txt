@@ -1,9 +1,3 @@
-# ==========================================
-# System Dependencies for Streamlit Cloud
-# Supports: GMSH + OpenSeesPy + VTK/PyVista
-# ==========================================
-
-# OpenGL and Mesa (for GMSH, PyVista, VTK)
 libglu1-mesa
 libgl1-mesa-glx
 libgl1-mesa-dri
@@ -11,15 +5,11 @@ libglvnd0
 libglx0
 libopengl0
 libegl1
-
-# X11 Core Libraries
 libx11-6
 libx11-xcb1
 libxcb1
 libxau6
 libxdmcp6
-
-# X11 Extensions
 libxext6
 libxrender1
 libxrandr2
@@ -29,32 +19,22 @@ libxi6
 libxfixes3
 libxcomposite1
 libxdamage1
-
-# X11 Toolkit
 libxt6
 libxmu6
 libxpm4
 libxaw7
 libice6
 libsm6
-
-# Font Rendering
 libxft2
 libfontconfig1
 libfreetype6
 libpng16-16
-
-# FLTK (GMSH GUI)
 libfltk1.3
 libfltk-gl1.3
 libfltk-images1.3
-
-# BLAS/LAPACK (OpenSeesPy numerical libraries)
 libblas3
 liblapack3
 libgfortran5
 libquadmath0
-
-# OpenMP and other utilities
 libgomp1
 libjpeg-turbo8
