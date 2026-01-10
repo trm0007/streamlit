@@ -1,6 +1,7 @@
 """
 Minimal Dynamic GMSH Mesh Generator
 Clean implementation with no defaults - all parameters required
+Fixed for Streamlit Cloud deployment
 """
 
 import os
@@ -15,20 +16,60 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 import imageio.v2 as imageio
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend for Streamlit
 import matplotlib.pyplot as plt
 import gmsh
 
 import openseespy.opensees as ops
-import opstool as opst
-import opstool.vis.pyvista as opsvis
-import opstool.vis.plotly as opsvis_plotly
+
+# Conditional imports for opstool
+try:
+    import opstool as opst
+    OPSTOOL_AVAILABLE = True
+    print("✓ opstool loaded successfully")
+except ImportError as e:
+    OPSTOOL_AVAILABLE = False
+    opst = None
+    print(f"⚠ opstool not available: {e}")
+    print("⚠ Visualization features will be limited")
+
+# Try to import visualization modules separately
+try:
+    if OPSTOOL_AVAILABLE:
+        import opstool.vis as opsvis_base
+        OPSTOOL_VIS_AVAILABLE = True
+    else:
+        OPSTOOL_VIS_AVAILABLE = False
+except ImportError:
+    OPSTOOL_VIS_AVAILABLE = False
+
+# PyVista visualization (optional)
+try:
+    if OPSTOOL_AVAILABLE:
+        from opstool.vis import pyvista as opsvis
+        PYVISTA_AVAILABLE = True
+    else:
+        PYVISTA_AVAILABLE = False
+except (ImportError, AttributeError):
+    PYVISTA_AVAILABLE = False
+    opsvis = None
+
+# Plotly visualization (optional)
+try:
+    if OPSTOOL_AVAILABLE:
+        from opstool.vis import plotly as opsvis_plotly
+        PLOTLY_AVAILABLE = True
+    else:
+        PLOTLY_AVAILABLE = False
+except (ImportError, AttributeError):
+    PLOTLY_AVAILABLE = False
+    opsvis_plotly = None
 
 
 """
 Shell Design Helper Functions
 """
-
-import numpy as np
 
 
 def create_regular_polygon_nodes(center_x, center_y, radius, n_sides, start_id, z=0.0):
@@ -62,6 +103,7 @@ def create_regular_polygon_nodes(center_x, center_y, radius, n_sides, start_id, 
         y = center_y + radius * np.sin(angle)
         nodes[start_id + i] = (x, y, z)
     return nodes
+
 
 def generate_mesh(boundary_nodes, mesh_size, internal_points, voids,
                   py_file, png_file, material_E, material_nu, material_rho,
@@ -433,6 +475,9 @@ def create_dynamic_composite_section(
     display_results, plot_section):
     """Create dynamic composite section - all parameters required"""
     
+    if not OPSTOOL_AVAILABLE:
+        raise ImportError("opstool is required for section creation but not available")
+    
     for name, props in materials.items():
         if 'elastic_modulus' not in props:
             raise ValueError(f"Material '{name}': 'elastic_modulus' required")
@@ -744,13 +789,6 @@ def apply_loads_and_masses(load_configs, mass_configs, shell_meshes,
     if node_coords is None:
         raise ValueError("node_coords required")
     
-    try:
-        import opstool as opst
-        has_opstool = True
-    except ImportError:
-        opst = None
-        has_opstool = False
-    
     results = {
         'nodal_masses': {},
         'load_summary': {},
@@ -791,67 +829,67 @@ def apply_loads_and_masses(load_configs, mass_configs, shell_meshes,
             results['load_summary']['nodal_loads'] = total_nodal_loads
         
         if 'beam_uniform_loads' in load_configs:
-            if not has_opstool:
-                raise ImportError("opstool required for beam_uniform_loads")
-            
-            total_beam_uniform = 0
-            for load_group in load_configs['beam_uniform_loads']:
-                for load in load_group['loads']:
-                    opst.pre.transform_beam_uniform_load(load['elements'], 
-                                                        wy=load['wy'], 
-                                                        wz=load['wz'])
-                    total_beam_uniform += len(load['elements'])
-            
-            results['load_summary']['beam_uniform_loads'] = total_beam_uniform
+            if not OPSTOOL_AVAILABLE:
+                print("⚠ WARNING: beam_uniform_loads requires opstool - skipping")
+            else:
+                total_beam_uniform = 0
+                for load_group in load_configs['beam_uniform_loads']:
+                    for load in load_group['loads']:
+                        opst.pre.transform_beam_uniform_load(load['elements'], 
+                                                            wy=load['wy'], 
+                                                            wz=load['wz'])
+                        total_beam_uniform += len(load['elements'])
+                
+                results['load_summary']['beam_uniform_loads'] = total_beam_uniform
         
         if 'beam_point_loads' in load_configs:
-            if not has_opstool:
-                raise ImportError("opstool required for beam_point_loads")
-            
-            total_beam_point = 0
-            for load_group in load_configs['beam_point_loads']:
-                for load in load_group['loads']:
-                    opst.pre.transform_beam_point_load([load['element']], 
-                                                       py=load['py'], 
-                                                       pz=load['pz'], 
-                                                       xl=load['xl'])
-                    total_beam_point += 1
-            
-            results['load_summary']['beam_point_loads'] = total_beam_point
+            if not OPSTOOL_AVAILABLE:
+                print("⚠ WARNING: beam_point_loads requires opstool - skipping")
+            else:
+                total_beam_point = 0
+                for load_group in load_configs['beam_point_loads']:
+                    for load in load_group['loads']:
+                        opst.pre.transform_beam_point_load([load['element']], 
+                                                           py=load['py'], 
+                                                           pz=load['pz'], 
+                                                           xl=load['xl'])
+                        total_beam_point += 1
+                
+                results['load_summary']['beam_point_loads'] = total_beam_point
         
         if 'shell_surface_loads' in load_configs:
-            if not has_opstool:
-                raise ImportError("opstool required for shell_surface_loads")
-            
-            if not shell_meshes:
-                raise ValueError("shell_meshes required for shell_surface_loads")
-            
-            total_shell_loads = 0
-            for load_group in load_configs['shell_surface_loads']:
-                for load in load_group['loads']:
-                    mesh_name = load['mesh_name']
-                    pressure = load['pressure']
-                    specific_elements = load['elements']
-                    
-                    target_mesh = None
-                    for mesh in shell_meshes:
-                        if mesh.get('config_name') == mesh_name:
-                            target_mesh = mesh
-                            break
-                    
-                    if target_mesh is None:
-                        raise ValueError(f"Mesh '{mesh_name}' not found")
-                    
-                    if specific_elements is None:
-                        element_tags = [elem['tag'] for elem in target_mesh['quad4']]
-                        element_tags += [elem['tag'] for elem in target_mesh['tri3']]
-                    else:
-                        element_tags = specific_elements
-                    
-                    opst.pre.transform_surface_uniform_load(ele_tags=element_tags, p=pressure)
-                    total_shell_loads += len(element_tags)
-            
-            results['load_summary']['shell_surface_loads'] = total_shell_loads
+            if not OPSTOOL_AVAILABLE:
+                print("⚠ WARNING: shell_surface_loads requires opstool - skipping")
+            else:
+                if not shell_meshes:
+                    raise ValueError("shell_meshes required for shell_surface_loads")
+                
+                total_shell_loads = 0
+                for load_group in load_configs['shell_surface_loads']:
+                    for load in load_group['loads']:
+                        mesh_name = load['mesh_name']
+                        pressure = load['pressure']
+                        specific_elements = load['elements']
+                        
+                        target_mesh = None
+                        for mesh in shell_meshes:
+                            if mesh.get('config_name') == mesh_name:
+                                target_mesh = mesh
+                                break
+                        
+                        if target_mesh is None:
+                            raise ValueError(f"Mesh '{mesh_name}' not found")
+                        
+                        if specific_elements is None:
+                            element_tags = [elem['tag'] for elem in target_mesh['quad4']]
+                            element_tags += [elem['tag'] for elem in target_mesh['tri3']]
+                        else:
+                            element_tags = specific_elements
+                        
+                        opst.pre.transform_surface_uniform_load(ele_tags=element_tags, p=pressure)
+                        total_shell_loads += len(element_tags)
+                
+                results['load_summary']['shell_surface_loads'] = total_shell_loads
         
         print("Loads applied")
     
@@ -935,61 +973,61 @@ def apply_loads_and_masses(load_configs, mass_configs, shell_meshes,
             shell_config = mass_configs['shell_mass']
             
             if shell_config['calculate']:
-                if not has_opstool:
-                    raise ImportError("opstool required for shell mass calculation")
-                
-                if not shell_meshes:
-                    raise ValueError("shell_meshes required when calculate=True")
-                
-                if not slab_configs:
-                    raise ValueError("slab_configs required when calculate=True")
-                
-                exclude_list = shell_config['exclude']
-                scale_factor = shell_config['scale']
-                
-                total_shell_mass_applied = 0.0
-                
-                for shell_mesh in shell_meshes:
-                    config_name = shell_mesh.get('config_name', 'Unknown')
+                if not OPSTOOL_AVAILABLE:
+                    print("⚠ WARNING: shell mass calculation requires opstool - skipping")
+                else:
+                    if not shell_meshes:
+                        raise ValueError("shell_meshes required when calculate=True")
                     
-                    if config_name in exclude_list:
-                        continue
+                    if not slab_configs:
+                        raise ValueError("slab_configs required when calculate=True")
                     
-                    density = None
-                    thickness = None
+                    exclude_list = shell_config['exclude']
+                    scale_factor = shell_config['scale']
                     
-                    for cfg in slab_configs:
-                        if cfg.get('name') == config_name:
-                            mat_config = cfg['shell_material_config']
-                            density = mat_config[4] * scale_factor
-                            
-                            sec_config = cfg['shell_section_config']
-                            thickness = sec_config[3]
-                            break
+                    total_shell_mass_applied = 0.0
                     
-                    if density is None or thickness is None:
-                        raise ValueError(f"Could not find density/thickness for {config_name}")
-                    
-                    shell_ele_tags = [elem['tag'] for elem in shell_mesh['quad4'] + shell_mesh['tri3']]
-                    
-                    shell_nodal_masses = _calculate_shell_mass_from_areas(
-                        ele_tags=shell_ele_tags,
-                        density=density,
-                        thickness=thickness,
-                        opst=opst
-                    )
-                    
-                    mesh_total_mass = 0.0
-                    for node_id, shell_mass in shell_nodal_masses.items():
-                        if node_id not in nodal_masses:
-                            nodal_masses[node_id] = 0.0
+                    for shell_mesh in shell_meshes:
+                        config_name = shell_mesh.get('config_name', 'Unknown')
                         
-                        nodal_masses[node_id] += shell_mass
-                        mesh_total_mass += shell_mass
+                        if config_name in exclude_list:
+                            continue
+                        
+                        density = None
+                        thickness = None
+                        
+                        for cfg in slab_configs:
+                            if cfg.get('name') == config_name:
+                                mat_config = cfg['shell_material_config']
+                                density = mat_config[4] * scale_factor
+                                
+                                sec_config = cfg['shell_section_config']
+                                thickness = sec_config[3]
+                                break
+                        
+                        if density is None or thickness is None:
+                            raise ValueError(f"Could not find density/thickness for {config_name}")
+                        
+                        shell_ele_tags = [elem['tag'] for elem in shell_mesh['quad4'] + shell_mesh['tri3']]
+                        
+                        shell_nodal_masses = _calculate_shell_mass_from_areas(
+                            ele_tags=shell_ele_tags,
+                            density=density,
+                            thickness=thickness,
+                            opst=opst
+                        )
+                        
+                        mesh_total_mass = 0.0
+                        for node_id, shell_mass in shell_nodal_masses.items():
+                            if node_id not in nodal_masses:
+                                nodal_masses[node_id] = 0.0
+                            
+                            nodal_masses[node_id] += shell_mass
+                            mesh_total_mass += shell_mass
+                        
+                        total_shell_mass_applied += mesh_total_mass
                     
-                    total_shell_mass_applied += mesh_total_mass
-                
-                results['mass_summary']['shell_mass_total'] = total_shell_mass_applied
+                    results['mass_summary']['shell_mass_total'] = total_shell_mass_applied
         
         nodes_with_mass = 0
         total_mass_applied = 0.0
@@ -1329,22 +1367,25 @@ def build_model(model_params, materials_list, outline_points_list,
     # Visualization
     if visualize:
         print("\nCreating visualization...")
-        try:
-            fig = opst.vis.plotly.plot_model(
-                show_node_numbering=False,
-                show_ele_numbering=False,
-                show_ele_hover=True,
-                style="surface",
-                show_bc=True,
-                bc_scale=0.5,
-                show_outline=True
-            )
-            
-            output_path = os.path.join(output_dir, "complete_model.html")
-            fig.write_html(output_path)
-            print(f"Saved: {output_path}")
-        except Exception as e:
-            print(f"Visualization error: {e}")
+        if PLOTLY_AVAILABLE and opsvis_plotly is not None:
+            try:
+                fig = opsvis_plotly.plot_model(
+                    show_node_numbering=False,
+                    show_ele_numbering=False,
+                    show_ele_hover=True,
+                    style="surface",
+                    show_bc=True,
+                    bc_scale=0.5,
+                    show_outline=True
+                )
+                
+                output_path = os.path.join(output_dir, "complete_model.html")
+                fig.write_html(output_path)
+                print(f"Saved: {output_path}")
+            except Exception as e:
+                print(f"Visualization error: {e}")
+        else:
+            print("⚠ Plotly visualization not available - skipping")
     
     # Summary
     all_node_tags = ops.getNodeTags()
@@ -1424,7 +1465,6 @@ def generate_complete_model_file(output_filepath, model_params, fiber_section_in
         f.write('"""' + "\n\n")
         
         f.write("import openseespy.opensees as ops\n")
-        f.write("import opstool as opst\n")
         f.write("import numpy as np\n\n")
         
         # Model initialization
@@ -1627,37 +1667,6 @@ def generate_complete_model_file(output_filepath, model_params, fiber_section_in
                         f.write(f"ops.load({load['node']}, {force_str})\n")
                 f.write("\n")
             
-            if 'beam_uniform_loads' in load_configs:
-                for load_group in load_configs['beam_uniform_loads']:
-                    for load in load_group['loads']:
-                        elem_str = str(load['elements'])
-                        f.write(f"opst.pre.transform_beam_uniform_load({elem_str}, "
-                               f"wy={load['wy']}, wz={load['wz']})\n")
-                f.write("\n")
-            
-            if 'beam_point_loads' in load_configs:
-                for load_group in load_configs['beam_point_loads']:
-                    for load in load_group['loads']:
-                        f.write(f"opst.pre.transform_beam_point_load([{load['element']}], "
-                               f"py={load['py']}, pz={load['pz']}, xl={load['xl']})\n")
-                f.write("\n")
-            
-            if 'shell_surface_loads' in load_configs:
-                for load_group in load_configs['shell_surface_loads']:
-                    for load in load_group['loads']:
-                        for shell_mesh in shell_meshes:
-                            if shell_mesh.get('config_name') == load['mesh_name']:
-                                if load['elements'] is None:
-                                    element_tags = [elem['tag'] for elem in shell_mesh['quad4']]
-                                    element_tags += [elem['tag'] for elem in shell_mesh['tri3']]
-                                else:
-                                    element_tags = load['elements']
-                                
-                                f.write(f"opst.pre.transform_surface_uniform_load("
-                                       f"ele_tags={element_tags}, p={load['pressure']})\n")
-                                break
-                f.write("\n")
-            
             f.write("print('Loads applied')\n\n")
         
         # Masses
@@ -1689,5 +1698,3 @@ def generate_complete_model_file(output_filepath, model_params, fiber_section_in
         f.write("print('='*70)\n")
     
     print(f"\nGenerated: {output_filepath}")
-
-
