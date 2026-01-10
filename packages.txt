@@ -1,0 +1,10 @@
+libglu1-mesa
+libglu1-mesa-dev
+freeglut3
+freeglut3-dev
+libgl1-mesa-glx
+libxrender1
+libxrandr2
+libxi6
+libxcursor1
+libxinerama1
