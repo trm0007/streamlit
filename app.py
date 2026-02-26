@@ -1365,6 +1365,7 @@ def show_main_app():
 
 # ─── Entry point ──────────────────────────────────────────────────────────────
 def main():
+    st.title("🏗️ Streamlit Concrete Analyzer | Structural Analysis Platform")
     if not st.session_state.authenticated:
         show_auth()
     else:
